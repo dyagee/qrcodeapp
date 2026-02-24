@@ -5,6 +5,9 @@
 <uses-permission android:name="android.permission.FLASHLIGHT"/>
 <!--  Internet for URL launching  -->
 <uses-permission android:name="android.permission.INTERNET"/>
+<!--  Storage for saving QR images (Android < 10)  -->
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
 <uses-feature android:name="android.hardware.camera" android:required="true"/>
 <application android:label="QR App" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">
 <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">

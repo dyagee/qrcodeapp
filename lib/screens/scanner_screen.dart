@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/history_service.dart';
@@ -20,6 +21,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   MobileScannerController? _controller;
   bool _torchEnabled = false;
   bool _isScanning = true;
+  bool _isProcessingImage = false;
   String? _lastScannedValue;
   late AnimationController _scanLineController;
 
@@ -42,11 +44,11 @@ class _ScannerScreenState extends State<ScannerScreen>
     super.dispose();
   }
 
+  // ── Camera detect ────────────────────────────────────────────────────────
   void _onDetect(BarcodeCapture capture) async {
     if (!_isScanning) return;
     final barcode = capture.barcodes.firstOrNull;
     if (barcode?.rawValue == null) return;
-
     final value = barcode!.rawValue!;
     if (value == _lastScannedValue) return;
 
@@ -56,15 +58,172 @@ class _ScannerScreenState extends State<ScannerScreen>
     });
 
     HapticFeedback.mediumImpact();
+    await _saveAndShow(value);
+  }
+
+  // ── Gallery pick & decode ────────────────────────────────────────────────
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final XFile? file = await picker.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+
+    setState(() => _isProcessingImage = true);
+
+    try {
+      // analyzeImage returns BarcodeCapture? via the controller
+      final result = await _controller!.analyzeImage(file.path);
+
+      setState(() => _isProcessingImage = false);
+
+      if (result == null || result.barcodes.isEmpty) {
+        _showNoQrFound();
+        return;
+      }
+
+      final value = result.barcodes.first.rawValue;
+      if (value == null || value.isEmpty) {
+        _showNoQrFound();
+        return;
+      }
+
+      HapticFeedback.mediumImpact();
+      await _saveAndShow(value, fromGallery: true);
+    } catch (e) {
+      setState(() => _isProcessingImage = false);
+      _showNoQrFound();
+    }
+  }
+
+  Future<void> _saveAndShow(String value, {bool fromGallery = false}) async {
     await HistoryService.addScan(ScanResultModel(
       value: value,
       type: _detectType(value),
       timestamp: DateTime.now(),
+      source: 'scanned',
     ));
-
     if (mounted) {
-      _showResultSheet(value);
+      _showResultSheet(value, fromGallery: fromGallery);
     }
+  }
+
+  void _showNoQrFound() {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF13131A),
+          borderRadius: BorderRadius.circular(28),
+          border:
+              Border.all(color: const Color(0xFFFF6B6B).withValues(alpha: 0.3)),
+        ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF6B6B).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.image_search_rounded,
+                  color: Color(0xFFFF6B6B), size: 36),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No QR Code Found',
+              style: GoogleFonts.spaceGrotesk(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'The selected image doesn\'t appear to contain a readable QR code. Try a clearer or higher-resolution image.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.spaceGrotesk(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _pickFromGallery();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00F5C4),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.photo_library_rounded,
+                              color: Colors.black, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Try Another',
+                              style: GoogleFonts.spaceGrotesk(
+                                color: Colors.black,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              )),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1)),
+                      ),
+                      child: Text('Dismiss',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.spaceGrotesk(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          )),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      )
+          .animate()
+          .slideY(
+              begin: 1, end: 0, duration: 350.ms, curve: Curves.easeOutCubic)
+          .fadeIn(),
+    );
   }
 
   String _detectType(String value) {
@@ -78,7 +237,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   bool _isUrl(String value) =>
       value.startsWith('http') || value.startsWith('www.');
 
-  void _showResultSheet(String value) {
+  void _showResultSheet(String value, {bool fromGallery = false}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -87,9 +246,13 @@ class _ScannerScreenState extends State<ScannerScreen>
         value: value,
         type: _detectType(value),
         isUrl: _isUrl(value),
+        fromGallery: fromGallery,
         onClose: () {
           Navigator.pop(ctx);
-          setState(() => _isScanning = true);
+          setState(() {
+            _isScanning = true;
+            _lastScannedValue = null;
+          });
         },
       ),
     );
@@ -176,17 +339,14 @@ class _ScannerScreenState extends State<ScannerScreen>
                 final centerY = MediaQuery.of(context).size.height / 2;
                 final top = centerY - scanAreaSize / 2;
                 final lineY = top + scanAreaSize * _scanLineController.value;
-
-                return CustomPaint(
-                  painter: _ScanLinePainter(lineY),
-                );
+                return CustomPaint(painter: _ScanLinePainter(lineY));
               },
             ),
           ),
 
-          // Instruction text
+          // Bottom area: hint + gallery button
           Positioned(
-            bottom: 160,
+            bottom: 100,
             left: 0,
             right: 0,
             child: Column(
@@ -200,13 +360,76 @@ class _ScannerScreenState extends State<ScannerScreen>
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
-                  'Results will appear automatically',
+                  'or pick an image from your gallery',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.spaceGrotesk(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: Colors.white.withValues(alpha: 0.35),
                     fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 22),
+
+                // Gallery button
+                GestureDetector(
+                  onTap: _isProcessingImage ? null : _pickFromGallery,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _isProcessingImage
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : const Color(0xFF00F5C4).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _isProcessingImage
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : const Color(0xFF00F5C4).withValues(alpha: 0.4),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: _isProcessingImage
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: const Color(0xFF00F5C4)
+                                      .withValues(alpha: 0.7),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Scanning image…',
+                                style: GoogleFonts.spaceGrotesk(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.photo_library_rounded,
+                                  color: Color(0xFF00F5C4), size: 20),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Scan from Gallery',
+                                style: GoogleFonts.spaceGrotesk(
+                                  color: const Color(0xFF00F5C4),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ],
@@ -218,7 +441,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 }
 
-// ── Overlay Painter ──────────────────────────────────────────────────────────
+// ── Overlay Painter ───────────────────────────────────────────────────────────
 
 class _ScanOverlayPainter extends CustomPainter {
   @override
@@ -226,11 +449,8 @@ class _ScanOverlayPainter extends CustomPainter {
     final scanSize = size.width * 0.7;
     final left = (size.width - scanSize) / 2;
     final top = (size.height - scanSize) / 2 - 30;
-
     final scanRect = Rect.fromLTWH(left, top, scanSize, scanSize);
     final fullRect = Rect.fromLTWH(0, 0, size.width, size.height);
-
-    final overlay = Paint()..color = Colors.black.withValues(alpha: 0.65);
 
     canvas.drawPath(
       Path.combine(
@@ -240,10 +460,9 @@ class _ScanOverlayPainter extends CustomPainter {
           ..addRRect(
               RRect.fromRectAndRadius(scanRect, const Radius.circular(20))),
       ),
-      overlay,
+      Paint()..color = Colors.black.withValues(alpha: 0.65),
     );
 
-    // Corner brackets
     const cornerLength = 28.0;
     const cornerThickness = 3.5;
     const cornerRadius = 4.0;
@@ -254,39 +473,34 @@ class _ScanOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final corners = [
-      // Top-left
       [
         Offset(left + cornerRadius, top),
         Offset(left + cornerLength, top),
         Offset(left, top + cornerRadius),
-        Offset(left, top + cornerLength),
+        Offset(left, top + cornerLength)
       ],
-      // Top-right
       [
         Offset(left + scanSize - cornerLength, top),
         Offset(left + scanSize - cornerRadius, top),
         Offset(left + scanSize, top + cornerRadius),
-        Offset(left + scanSize, top + cornerLength),
+        Offset(left + scanSize, top + cornerLength)
       ],
-      // Bottom-left
       [
         Offset(left, top + scanSize - cornerLength),
         Offset(left, top + scanSize - cornerRadius),
         Offset(left + cornerRadius, top + scanSize),
-        Offset(left + cornerLength, top + scanSize),
+        Offset(left + cornerLength, top + scanSize)
       ],
-      // Bottom-right
       [
         Offset(left + scanSize, top + scanSize - cornerLength),
         Offset(left + scanSize, top + scanSize - cornerRadius),
         Offset(left + scanSize - cornerRadius, top + scanSize),
-        Offset(left + scanSize - cornerLength, top + scanSize),
+        Offset(left + scanSize - cornerLength, top + scanSize)
       ],
     ];
-
-    for (final corner in corners) {
-      canvas.drawLine(corner[0], corner[1], paint);
-      canvas.drawLine(corner[2], corner[3], paint);
+    for (final c in corners) {
+      canvas.drawLine(c[0], c[1], paint);
+      canvas.drawLine(c[2], c[3], paint);
     }
   }
 
@@ -294,7 +508,7 @@ class _ScanOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── Scan Line Painter ────────────────────────────────────────────────────────
+// ── Scan Line Painter ─────────────────────────────────────────────────────────
 
 class _ScanLinePainter extends CustomPainter {
   final double lineY;
@@ -317,16 +531,16 @@ class _ScanLinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ScanLinePainter oldDelegate) =>
-      oldDelegate.lineY != lineY;
+  bool shouldRepaint(_ScanLinePainter old) => old.lineY != lineY;
 }
 
-// ── Result Bottom Sheet ──────────────────────────────────────────────────────
+// ── Result Sheet ──────────────────────────────────────────────────────────────
 
 class _ResultSheet extends StatelessWidget {
   final String value;
   final String type;
   final bool isUrl;
+  final bool fromGallery;
   final VoidCallback onClose;
 
   const _ResultSheet({
@@ -334,6 +548,7 @@ class _ResultSheet extends StatelessWidget {
     required this.type,
     required this.isUrl,
     required this.onClose,
+    this.fromGallery = false,
   });
 
   IconData _typeIcon() {
@@ -358,15 +573,12 @@ class _ResultSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF13131A),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: const Color(0xFF00F5C4).withValues(alpha: 0.2),
-          width: 1,
-        ),
+        border:
+            Border.all(color: const Color(0xFF00F5C4).withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF00F5C4).withValues(alpha: 0.08),
             blurRadius: 40,
-            spreadRadius: 0,
           ),
         ],
       ),
@@ -389,7 +601,7 @@ class _ResultSheet extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Type badge + icon
+            // Type badge row
             Row(
               children: [
                 Container(
@@ -399,8 +611,7 @@ class _ResultSheet extends StatelessWidget {
                     color: const Color(0xFF00F5C4).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF00F5C4).withValues(alpha: 0.3),
-                    ),
+                        color: const Color(0xFF00F5C4).withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -408,11 +619,51 @@ class _ResultSheet extends StatelessWidget {
                       Icon(_typeIcon(),
                           size: 14, color: const Color(0xFF00F5C4)),
                       const SizedBox(width: 6),
+                      Text(type,
+                          style: GoogleFonts.spaceGrotesk(
+                            color: const Color(0xFF00F5C4),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          )),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Source badge
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: fromGallery
+                        ? const Color(0xFF7B61FF).withValues(alpha: 0.12)
+                        : Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: fromGallery
+                          ? const Color(0xFF7B61FF).withValues(alpha: 0.3)
+                          : Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        fromGallery
+                            ? Icons.photo_library_rounded
+                            : Icons.qr_code_scanner_rounded,
+                        size: 12,
+                        color: fromGallery
+                            ? const Color(0xFF7B61FF)
+                            : Colors.white.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 5),
                       Text(
-                        type,
+                        fromGallery ? 'From Gallery' : 'Camera',
                         style: GoogleFonts.spaceGrotesk(
-                          color: const Color(0xFF00F5C4),
-                          fontSize: 12,
+                          color: fromGallery
+                              ? const Color(0xFF7B61FF)
+                              : Colors.white.withValues(alpha: 0.5),
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -420,19 +671,17 @@ class _ResultSheet extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  'Scanned!',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: Colors.white.withValues(alpha: 0.4),
-                    fontSize: 13,
-                  ),
-                ),
+                Text('Scanned!',
+                    style: GoogleFonts.spaceGrotesk(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontSize: 12,
+                    )),
               ],
             ),
 
             const SizedBox(height: 16),
 
-            // Value
+            // Value box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -455,7 +704,7 @@ class _ResultSheet extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // Action buttons
+            // Actions
             Row(
               children: [
                 Expanded(
@@ -464,9 +713,8 @@ class _ResultSheet extends StatelessWidget {
                     label: 'Copy',
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: value));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        _snackBar('Copied to clipboard!'),
-                      );
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(_snackBar('Copied!'));
                     },
                   ),
                 ),
@@ -501,7 +749,6 @@ class _ResultSheet extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Scan again
             SizedBox(
               width: double.infinity,
               child: TextButton(
@@ -509,16 +756,13 @@ class _ResultSheet extends StatelessWidget {
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                      borderRadius: BorderRadius.circular(16)),
                 ),
-                child: Text(
-                  'Scan Again',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: Text('Scan Again',
+                    style: GoogleFonts.spaceGrotesk(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontWeight: FontWeight.w600,
+                    )),
               ),
             ),
           ],
@@ -530,8 +774,8 @@ class _ResultSheet extends StatelessWidget {
         .fadeIn();
   }
 
-  SnackBar _snackBar(String message) => SnackBar(
-        content: Text(message,
+  SnackBar _snackBar(String msg) => SnackBar(
+        content: Text(msg,
             style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w500)),
         backgroundColor: const Color(0xFF00F5C4).withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
@@ -575,20 +819,15 @@ class _ActionButton extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: isPrimary ? Colors.black : Colors.white,
-              size: 20,
-            ),
+            Icon(icon,
+                color: isPrimary ? Colors.black : Colors.white, size: 20),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.spaceGrotesk(
-                color: isPrimary ? Colors.black : Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(label,
+                style: GoogleFonts.spaceGrotesk(
+                  color: isPrimary ? Colors.black : Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                )),
           ],
         ),
       ),

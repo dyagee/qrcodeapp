@@ -8,9 +8,7 @@ class HistoryService {
   static Future<List<ScanResultModel>> getHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_key) ?? [];
-    return raw
-        .map((e) => ScanResultModel.fromJson(jsonDecode(e)))
-        .toList();
+    return raw.map((e) => ScanResultModel.fromJson(jsonDecode(e))).toList();
   }
 
   static Future<void> addScan(ScanResultModel scan) async {
