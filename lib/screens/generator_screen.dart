@@ -89,8 +89,8 @@ class _GeneratorScreenState extends State<GeneratorScreen> {
       final file = File(
           '${tempDir.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(bytes);
-      await Gal.putImage(file.path, album: 'QR Studio');
-      _showSnack('QR code saved to gallery! 🎉');
+      await Gal.putImage(file.path, album: 'QR App');
+      _showSnack('QR code saved to gallery!');
     } catch (e) {
       _showSnack('Could not save to gallery', isError: true);
     }
