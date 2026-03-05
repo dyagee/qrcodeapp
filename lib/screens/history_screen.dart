@@ -158,36 +158,33 @@ class HistoryScreenState extends State<HistoryScreen>
                   border:
                       Border.all(color: Colors.white.withValues(alpha: 0.07)),
                 ),
-                child: Expanded(
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.center,
-                    indicator: BoxDecoration(
-                      color: const Color(0xFF00F5C4).withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color:
-                              const Color(0xFF00F5C4).withValues(alpha: 0.4)),
-                    ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    dividerColor: Colors.transparent,
-                    labelStyle: GoogleFonts.spaceGrotesk(
-                        fontSize: 12, fontWeight: FontWeight.w700),
-                    unselectedLabelStyle: GoogleFonts.spaceGrotesk(
-                        fontSize: 12, fontWeight: FontWeight.w500),
-                    labelColor: const Color(0xFF00F5C4),
-                    unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
-                    tabs: [
-                      _buildTab('All', _history.length),
-                      _buildTab('Scanned',
-                          _history.where((h) => h.source == 'scanned').length,
-                          icon: Icons.qr_code_scanner_rounded),
-                      _buildTab('Generated',
-                          _history.where((h) => h.source == 'generated').length,
-                          icon: Icons.qr_code_rounded),
-                    ],
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.center,
+                  indicator: BoxDecoration(
+                    color: const Color(0xFF00F5C4).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFF00F5C4).withValues(alpha: 0.4)),
                   ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelStyle: GoogleFonts.spaceGrotesk(
+                      fontSize: 12, fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+                      fontSize: 12, fontWeight: FontWeight.w500),
+                  labelColor: const Color(0xFF00F5C4),
+                  unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
+                  tabs: [
+                    _buildTab('All', _history.length),
+                    _buildTab('Scanned',
+                        _history.where((h) => h.source == 'scanned').length,
+                        icon: Icons.qr_code_scanner_rounded),
+                    _buildTab('Generated',
+                        _history.where((h) => h.source == 'generated').length,
+                        icon: Icons.qr_code_rounded),
+                  ],
                 ),
               ),
             ).animate().fadeIn(delay: 100.ms),
