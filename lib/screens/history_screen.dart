@@ -11,26 +11,30 @@ class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<HistoryScreen> createState() => HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class HistoryScreenState extends State<HistoryScreen>
+    with SingleTickerProviderStateMixin {
   List<ScanResultModel> _history = [];
   bool _loading = true;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _loadHistory();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+    loadHistory();
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _loadHistory();
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadHistory() async {
+  Future<void> loadHistory() async {
     final history = await HistoryService.getHistory();
     if (mounted) {
       setState(() {
@@ -42,11 +46,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _clearHistory() async {
     await HistoryService.clearHistory();
-    setState(() => _history = []);
+    if (mounted) setState(() => _history = []);
   }
 
-  IconData _typeIcon(String type) {
-    switch (type) {
+  List<ScanResultModel> get _filtered {
+    switch (_tabController.index) {
+      case 1:
+        return _history.where((h) => h.source == 'scanned').toList();
+      case 2:
+        return _history.where((h) => h.source == 'generated').toList();
+      default:
+        return _history;
+    }
+  }
+
+  IconData _typeIcon(ScanResultModel item) {
+    switch (item.type) {
       case 'URL':
         return Icons.link_rounded;
       case 'Phone':
@@ -60,8 +75,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Color _typeColor(String type) {
-    switch (type) {
+  Color _typeColor(ScanResultModel item) {
+    switch (item.type) {
       case 'URL':
         return const Color(0xFF7B61FF);
       case 'Phone':
@@ -77,33 +92,34 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filtered;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // ── Header ────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text('History',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          )),
                       Text(
-                        'History',
+                        '${_filtered.length} item${_filtered.length == 1 ? '' : 's'}',
                         style: GoogleFonts.spaceGrotesk(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      Text(
-                        '${_history.length} scan${_history.length == 1 ? '' : 's'}',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 14,
+                          fontSize: 13,
                           color: Colors.white.withValues(alpha: 0.4),
                         ),
                       ),
@@ -112,94 +128,97 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const Spacer(),
                   if (_history.isNotEmpty)
                     GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: const Color(0xFF13131A),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            title: Text(
-                              'Clear History',
-                              style: GoogleFonts.spaceGrotesk(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            content: Text(
-                              'Are you sure you want to delete all scan history?',
-                              style: GoogleFonts.spaceGrotesk(
-                                color: Colors.white.withValues(alpha: 0.6),
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: Text('Cancel',
-                                    style: GoogleFonts.spaceGrotesk(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.5))),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  _clearHistory();
-                                },
-                                child: Text('Clear',
-                                    style: GoogleFonts.spaceGrotesk(
-                                        color: const Color(0xFFFF6B6B),
-                                        fontWeight: FontWeight.w700)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                      onTap: _confirmClear,
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(
-                          Icons.delete_outline_rounded,
-                          color: Colors.white.withValues(alpha: 0.5),
-                          size: 20,
-                        ),
+                        child: Icon(Icons.delete_outline_rounded,
+                            color: Colors.white.withValues(alpha: 0.45),
+                            size: 20),
                       ),
                     ),
                 ],
               ).animate().fadeIn().slideY(begin: -0.2),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
-            // List
+            // ── Filter Tabs ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF13131A),
+                  borderRadius: BorderRadius.circular(14),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.07)),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  indicator: BoxDecoration(
+                    color: const Color(0xFF00F5C4).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFF00F5C4).withValues(alpha: 0.4)),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelStyle: GoogleFonts.spaceGrotesk(
+                      fontSize: 12, fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+                      fontSize: 12, fontWeight: FontWeight.w500),
+                  labelColor: const Color(0xFF00F5C4),
+                  unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
+                  tabs: [
+                    _buildTab('All', _history.length),
+                    _buildTab('Scanned',
+                        _history.where((h) => h.source == 'scanned').length,
+                        icon: Icons.qr_code_scanner_rounded),
+                    _buildTab('Generated',
+                        _history.where((h) => h.source == 'generated').length,
+                        icon: Icons.qr_code_rounded),
+                  ],
+                ),
+              ),
+            ).animate().fadeIn(delay: 100.ms),
+
+            const SizedBox(height: 16),
+
+            // ── List ──────────────────────────────────────────────────────
             Expanded(
               child: _loading
                   ? const Center(
                       child:
                           CircularProgressIndicator(color: Color(0xFF00F5C4)))
-                  : _history.isEmpty
+                  : filtered.isEmpty
                       ? _buildEmpty()
                       : RefreshIndicator(
                           color: const Color(0xFF00F5C4),
-                          onRefresh: _loadHistory,
+                          onRefresh: loadHistory,
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                            itemCount: _history.length,
+                            itemCount: filtered.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 10),
                             itemBuilder: (_, i) {
-                              final item = _history[i];
+                              final item = filtered[i];
                               return _HistoryCard(
                                 item: item,
-                                typeIcon: _typeIcon(item.type),
-                                typeColor: _typeColor(item.type),
+                                typeIcon: _typeIcon(item),
+                                typeColor: _typeColor(item),
                                 index: i,
-                                onDelete: () {
-                                  setState(() => _history.removeAt(i));
-                                  HistoryService.removeAt(_history.length - i);
+                                onDelete: () async {
+                                  final idx = _history.indexOf(item);
+                                  if (idx != -1) {
+                                    await HistoryService.removeByIndex(
+                                        _history.length - 1 - idx);
+                                    setState(() => _history.removeAt(idx));
+                                  }
                                 },
                               );
                             },
@@ -212,7 +231,67 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Tab _buildTab(String label, int count, {IconData? icon}) {
+    return Tab(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 12), const SizedBox(width: 4)],
+          Text(label),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text('$count',
+                style: GoogleFonts.spaceGrotesk(
+                    fontSize: 10, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClear() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF13131A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Clear History',
+            style: GoogleFonts.spaceGrotesk(
+                color: Colors.white, fontWeight: FontWeight.w700)),
+        content: Text('Delete all scan and generated history?',
+            style: GoogleFonts.spaceGrotesk(
+                color: Colors.white.withValues(alpha: 0.6))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: GoogleFonts.spaceGrotesk(
+                    color: Colors.white.withValues(alpha: 0.5))),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _clearHistory();
+            },
+            child: Text('Clear All',
+                style: GoogleFonts.spaceGrotesk(
+                    color: const Color(0xFFFF6B6B),
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmpty() {
+    final isFiltered = _tabController.index != 0;
+    final label = _tabController.index == 1 ? 'scanned' : 'generated';
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -220,18 +299,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Container(
             padding: const EdgeInsets.all(28),
             decoration: const BoxDecoration(
-              color: Color(0xFF13131A),
-              shape: BoxShape.circle,
-            ),
+                color: Color(0xFF13131A), shape: BoxShape.circle),
             child: Icon(
-              Icons.history_rounded,
-              size: 48,
+              isFiltered
+                  ? (_tabController.index == 1
+                      ? Icons.qr_code_scanner_rounded
+                      : Icons.qr_code_rounded)
+                  : Icons.history_rounded,
+              size: 44,
               color: Colors.white.withValues(alpha: 0.15),
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            'No scans yet',
+            isFiltered ? 'No $label codes yet' : 'Nothing here yet',
             style: GoogleFonts.spaceGrotesk(
               color: Colors.white.withValues(alpha: 0.5),
               fontSize: 18,
@@ -240,17 +321,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Scan a QR code to see it here',
+            isFiltered
+                ? 'Items will appear here once you $label a code'
+                : 'Tap Scan or Generate below to get started',
+            textAlign: TextAlign.center,
             style: GoogleFonts.spaceGrotesk(
               color: Colors.white.withValues(alpha: 0.3),
-              fontSize: 14,
+              fontSize: 13,
             ),
           ),
         ],
-      ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.9, 0.9)),
+      ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.92, 0.92)),
     );
   }
 }
+
+// ── History Card ──────────────────────────────────────────────────────────────
 
 class _HistoryCard extends StatelessWidget {
   final ScanResultModel item;
@@ -270,98 +356,123 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final formatted = DateFormat('MMM d, yyyy · h:mm a').format(item.timestamp);
+    final isGenerated = item.source == 'generated';
 
     return Dismissible(
-      key: Key(item.timestamp.toIso8601String()),
+      key: Key('${item.timestamp.toIso8601String()}_${item.value}'),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFFF6B6B).withValues(alpha: 0.2),
+          color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Icon(Icons.delete_rounded, color: Color(0xFFFF6B6B)),
       ),
       onDismissed: (_) => onDelete(),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: const Color(0xFF13131A),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: typeColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(typeIcon, color: typeColor, size: 18),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: typeColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.value,
+            child: Icon(typeIcon, color: typeColor, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.value,
                     style: GoogleFonts.spaceGrotesk(
                       color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    formatted,
-                    style: GoogleFonts.spaceGrotesk(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 11,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 5),
+                Row(children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isGenerated
+                          ? const Color(0xFF7B61FF).withValues(alpha: 0.15)
+                          : const Color(0xFF00F5C4).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Row(
-              children: [
-                _IconBtn(
-                  icon: Icons.copy_rounded,
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: item.value));
-                    HapticFeedback.selectionClick();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            Text('Copied!', style: GoogleFonts.spaceGrotesk()),
-                        backgroundColor:
-                            const Color(0xFF00F5C4).withValues(alpha: 0.9),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        duration: const Duration(seconds: 2),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(
+                        isGenerated
+                            ? Icons.qr_code_rounded
+                            : Icons.qr_code_scanner_rounded,
+                        size: 9,
+                        color: isGenerated
+                            ? const Color(0xFF7B61FF)
+                            : const Color(0xFF00F5C4),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 6),
-                _IconBtn(
-                  icon: Icons.share_rounded,
-                  onTap: () => Share.share(item.value),
-                ),
+                      const SizedBox(width: 3),
+                      Text(
+                        isGenerated ? 'Generated' : 'Scanned',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: isGenerated
+                              ? const Color(0xFF7B61FF)
+                              : const Color(0xFF00F5C4),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(formatted,
+                      style: GoogleFonts.spaceGrotesk(
+                        color: Colors.white.withValues(alpha: 0.28),
+                        fontSize: 10,
+                      )),
+                ]),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 6),
+          Row(children: [
+            _IconBtn(
+              icon: Icons.copy_rounded,
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: item.value));
+                HapticFeedback.selectionClick();
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Copied!', style: GoogleFonts.spaceGrotesk()),
+                  backgroundColor:
+                      const Color(0xFF00F5C4).withValues(alpha: 0.9),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  duration: const Duration(seconds: 2),
+                ));
+              },
+            ),
+            const SizedBox(width: 6),
+            _IconBtn(
+              icon: Icons.share_rounded,
+              onTap: () => Share.share(item.value),
+            ),
+          ]),
+        ]),
       )
-          .animate(delay: Duration(milliseconds: 50 * index))
+          .animate(delay: Duration(milliseconds: 40 * index))
           .fadeIn()
-          .slideX(begin: 0.1),
+          .slideX(begin: 0.06),
     );
   }
 }
@@ -369,7 +480,6 @@ class _HistoryCard extends StatelessWidget {
 class _IconBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-
   const _IconBtn({required this.icon, required this.onTap});
 
   @override
@@ -382,7 +492,8 @@ class _IconBtn extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.5)),
+        child:
+            Icon(icon, size: 15, color: Colors.white.withValues(alpha: 0.45)),
       ),
     );
   }

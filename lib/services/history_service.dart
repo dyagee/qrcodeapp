@@ -27,6 +27,11 @@ class HistoryService {
     }
   }
 
+  /// Remove by index into the raw list (0 = oldest)
+  static Future<void> removeByIndex(int index) async {
+    return removeAt(index);
+  }
+
   static Future<void> clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);

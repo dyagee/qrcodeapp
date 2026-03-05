@@ -89,7 +89,7 @@ class _GeneratorScreenState extends State<GeneratorScreen> {
       final file = File(
           '${tempDir.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(bytes);
-      await Gal.putImage(file.path, album: 'QR App');
+      await Gal.putImage(file.path, album: 'QR Studio');
       _showSnack('QR code saved to gallery!');
     } catch (e) {
       _showSnack('Could not save to gallery', isError: true);
@@ -360,7 +360,7 @@ class _GeneratorScreenState extends State<GeneratorScreen> {
 
                       const SizedBox(height: 28),
 
-                      // ── Save / Share / Copy row ──
+                      // Save / Share / Copy row
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -374,7 +374,10 @@ class _GeneratorScreenState extends State<GeneratorScreen> {
                           _GenActionBtn(
                             icon: Icons.share_rounded,
                             label: 'Share',
-                            onTap: _shareQr,
+                            onTap: () {
+                              _saveToHistory();
+                              _shareQr;
+                            },
                           ),
                           const SizedBox(width: 10),
                           _GenActionBtn(
@@ -383,6 +386,7 @@ class _GeneratorScreenState extends State<GeneratorScreen> {
                             onTap: () {
                               Clipboard.setData(ClipboardData(
                                   text: _textController.text.trim()));
+                              _saveToHistory();
                               _showSnack('Copied to clipboard');
                             },
                           ),
@@ -627,7 +631,7 @@ class _SheetOption extends StatelessWidget {
   }
 }
 
-// ── Compact action button below QR ───────────────────────────────────────────
+// Compact action button below QR
 
 class _GenActionBtn extends StatelessWidget {
   final IconData icon;

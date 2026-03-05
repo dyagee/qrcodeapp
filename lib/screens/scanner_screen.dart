@@ -17,7 +17,7 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   MobileScannerController? _controller;
   bool _torchEnabled = false;
   bool _isScanning = true;
@@ -28,23 +28,68 @@ class _ScannerScreenState extends State<ScannerScreen>
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-    );
+    WidgetsBinding.instance.addObserver(this);
+    _initController();
     _scanLineController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
   }
 
+  /// Pause/resume camera with app lifecycle (background → foreground)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_controller == null) return;
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        _controller!.stop();
+        break;
+      case AppLifecycleState.resumed:
+        _controller!.start();
+        break;
+      default:
+        break;
+    }
+  }
+
+  bool _isTabActive = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Detect when this widget is put offstage (tab switch) and stop camera
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      final active = route.isCurrent;
+      if (active != _isTabActive) {
+        _isTabActive = active;
+        if (active) {
+          _controller?.start();
+        } else {
+          _controller?.stop();
+        }
+      }
+    }
+  }
+
+  void _initController() {
+    _controller?.dispose();
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+    );
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     _scanLineController.dispose();
     super.dispose();
   }
 
-  // ── Camera detect ────────────────────────────────────────────────────────
+  // Camera detect
   void _onDetect(BarcodeCapture capture) async {
     if (!_isScanning) return;
     final barcode = capture.barcodes.firstOrNull;
@@ -61,7 +106,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     await _saveAndShow(value);
   }
 
-  // ── Gallery pick & decode ────────────────────────────────────────────────
+  // Gallery pick & decode
   Future<void> _pickFromGallery() async {
     final picker = ImagePicker();
     final XFile? file = await picker.pickImage(source: ImageSource.gallery);
@@ -441,7 +486,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 }
 
-// ── Overlay Painter ───────────────────────────────────────────────────────────
+// Overlay Painter
 
 class _ScanOverlayPainter extends CustomPainter {
   @override
@@ -508,7 +553,7 @@ class _ScanOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── Scan Line Painter ─────────────────────────────────────────────────────────
+// Scan Line Painter
 
 class _ScanLinePainter extends CustomPainter {
   final double lineY;
@@ -534,7 +579,7 @@ class _ScanLinePainter extends CustomPainter {
   bool shouldRepaint(_ScanLinePainter old) => old.lineY != lineY;
 }
 
-// ── Result Sheet ──────────────────────────────────────────────────────────────
+// Result Sheet
 
 class _ResultSheet extends StatelessWidget {
   final String value;
