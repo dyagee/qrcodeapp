@@ -100,7 +100,7 @@ class HistoryScreenState extends State<HistoryScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────────
+            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
@@ -146,9 +146,9 @@ class HistoryScreenState extends State<HistoryScreen>
 
             const SizedBox(height: 18),
 
-            // ── Filter Tabs ───────────────────────────────────────────────
+            // Filter Tabs
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Container(
                 height: 44,
                 padding: const EdgeInsets.all(4),
@@ -158,38 +158,43 @@ class HistoryScreenState extends State<HistoryScreen>
                   border:
                       Border.all(color: Colors.white.withValues(alpha: 0.07)),
                 ),
-                child: TabBar(
-                  controller: _tabController,
-                  indicator: BoxDecoration(
-                    color: const Color(0xFF00F5C4).withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color(0xFF00F5C4).withValues(alpha: 0.4)),
+                child: Expanded(
+                  child: TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.center,
+                    indicator: BoxDecoration(
+                      color: const Color(0xFF00F5C4).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color:
+                              const Color(0xFF00F5C4).withValues(alpha: 0.4)),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelStyle: GoogleFonts.spaceGrotesk(
+                        fontSize: 12, fontWeight: FontWeight.w700),
+                    unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+                        fontSize: 12, fontWeight: FontWeight.w500),
+                    labelColor: const Color(0xFF00F5C4),
+                    unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
+                    tabs: [
+                      _buildTab('All', _history.length),
+                      _buildTab('Scanned',
+                          _history.where((h) => h.source == 'scanned').length,
+                          icon: Icons.qr_code_scanner_rounded),
+                      _buildTab('Generated',
+                          _history.where((h) => h.source == 'generated').length,
+                          icon: Icons.qr_code_rounded),
+                    ],
                   ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  labelStyle: GoogleFonts.spaceGrotesk(
-                      fontSize: 12, fontWeight: FontWeight.w700),
-                  unselectedLabelStyle: GoogleFonts.spaceGrotesk(
-                      fontSize: 12, fontWeight: FontWeight.w500),
-                  labelColor: const Color(0xFF00F5C4),
-                  unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
-                  tabs: [
-                    _buildTab('All', _history.length),
-                    _buildTab('Scanned',
-                        _history.where((h) => h.source == 'scanned').length,
-                        icon: Icons.qr_code_scanner_rounded),
-                    _buildTab('Generated',
-                        _history.where((h) => h.source == 'generated').length,
-                        icon: Icons.qr_code_rounded),
-                  ],
                 ),
               ),
             ).animate().fadeIn(delay: 100.ms),
 
             const SizedBox(height: 16),
 
-            // ── List ──────────────────────────────────────────────────────
+            // List
             Expanded(
               child: _loading
                   ? const Center(
@@ -336,7 +341,7 @@ class HistoryScreenState extends State<HistoryScreen>
   }
 }
 
-// ── History Card ──────────────────────────────────────────────────────────────
+// History Card
 
 class _HistoryCard extends StatelessWidget {
   final ScanResultModel item;
@@ -356,7 +361,7 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final formatted = DateFormat('MMM d, yyyy · h:mm a').format(item.timestamp);
-    final isGenerated = item.source == 'generated';
+    // final isGenerated = item.source == 'generated';
 
     return Dismissible(
       key: Key('${item.timestamp.toIso8601String()}_${item.value}'),
@@ -402,38 +407,39 @@ class _HistoryCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 5),
                 Row(children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isGenerated
-                          ? const Color(0xFF7B61FF).withValues(alpha: 0.15)
-                          : const Color(0xFF00F5C4).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(
-                        isGenerated
-                            ? Icons.qr_code_rounded
-                            : Icons.qr_code_scanner_rounded,
-                        size: 9,
-                        color: isGenerated
-                            ? const Color(0xFF7B61FF)
-                            : const Color(0xFF00F5C4),
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        isGenerated ? 'Generated' : 'Scanned',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: isGenerated
-                              ? const Color(0xFF7B61FF)
-                              : const Color(0xFF00F5C4),
-                        ),
-                      ),
-                    ]),
-                  ),
+                  /// Uncomment if want to show label for scanned or generated
+                  // Container(
+                  //   padding:
+                  //       const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  //   decoration: BoxDecoration(
+                  //     color: isGenerated
+                  //         ? const Color(0xFF7B61FF).withValues(alpha: 0.15)
+                  //         : const Color(0xFF00F5C4).withValues(alpha: 0.12),
+                  //     borderRadius: BorderRadius.circular(6),
+                  //   ),
+                  //   child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  //     Icon(
+                  //       isGenerated
+                  //           ? Icons.qr_code_rounded
+                  //           : Icons.qr_code_scanner_rounded,
+                  //       size: 9,
+                  //       color: isGenerated
+                  //           ? const Color(0xFF7B61FF)
+                  //           : const Color(0xFF00F5C4),
+                  //     ),
+                  //     const SizedBox(width: 3),
+                  //     Text(
+                  //       isGenerated ? 'Generated' : 'Scanned',
+                  //       style: GoogleFonts.spaceGrotesk(
+                  //         fontSize: 9,
+                  //         fontWeight: FontWeight.w700,
+                  //         color: isGenerated
+                  //             ? const Color(0xFF7B61FF)
+                  //             : const Color(0xFF00F5C4),
+                  //       ),
+                  //     ),
+                  //   ]),
+                  // ),
                   const SizedBox(width: 6),
                   Text(formatted,
                       style: GoogleFonts.spaceGrotesk(
